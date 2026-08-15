@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>트렌드 신호 판별 — 패션잡화(신발): 여성신발/남성신발 (신발) · shoes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /*
+    design-wise.md(Wise 브랜드 디자인 시스템)를 따른 팔레트/타이포/셰이프.
+    라이트 모드가 기본(캔버스 화이트 카드 + 세이지 톤 캔버스), 다크 모드는
+    브랜드의 "polarity-flip"(잉크 배경 + 라임그린 강조) 레시피를 그대로 적용.
+    Wise Sans는 독점 서체라 임베드할 수 없어, 문서에서 권장한 대체 서체인
+    Inter weight 900을 히어로 타이포에 사용한다.
+  */
+  :root{
+    --canvas:#ffffff; --page-bg:#e8ebe6; --card-bg:#ffffff;
+    --ink:#0e0f0c; --ink-deep:#163300; --body-text:#454745; --mute:#868685;
+    --primary:#9fe870; --primary-active:#cdffad; --primary-neutral:#c5edab; --primary-pale:#e2f6d5;
+    --on-primary:#0e0f0c;
+    --positive:#2ead4b; --positive-deep:#054d28; --positive-pale:#e2f6d5;
+    --warning:#ffd11a; --warning-deep:#b86700; --warning-content:#4a3b1c; --warning-pale:#fff6d9;
+    --negative:#d03238; --negative-deep:#a72027; --negative-pale:#fbe6e7;
+    --mute-pale:#eceeec;
+    --border:rgba(14,15,12,0.08);
+    --line-search:#2699c9; --line-revenue:#2ead4b; --line-trend:#868685; --line-seasonal:#2699c9; --line-residual:#d03238;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --canvas:#181a15; --page-bg:#0e0f0c; --card-bg:#181a15;
+      --ink:#f3f6ef; --ink-deep:#cdffad; --body-text:#c7cbc4; --mute:#8f948d;
+      --primary:#9fe870; --primary-active:#cdffad; --primary-neutral:#3c5a2a; --primary-pale:#22301a;
+      --on-primary:#0e0f0c;
+      --positive:#5fd889; --positive-deep:#8be8a8; --positive-pale:#183823;
+      --warning:#ffd11a; --warning-deep:#ffcf5c; --warning-content:#3a2f10; --warning-pale:#3a2f10;
+      --negative:#ff7a7f; --negative-deep:#ffb3b6; --negative-pale:#3a1416;
+      --mute-pale:#22241f;
+      --border:rgba(243,246,239,0.10);
+      --line-search:#5cc6f2; --line-revenue:#5fd889; --line-trend:#8f948d; --line-seasonal:#5cc6f2; --line-residual:#ff8a8e;
+    }
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--page-bg); color:var(--ink); font-family:'Inter',system-ui,sans-serif; padding:32px 24px 64px;}
+  .wrap{max-width:1080px; margin:0 auto;}
+  header{display:flex; justify-content:space-between; align-items:flex-end; gap:24px; margin-bottom:24px; flex-wrap:wrap;}
+  .eyebrow{font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.12em; color:var(--mute); text-transform:uppercase; margin-bottom:8px;}
+  h1{font-family:'Inter',sans-serif; font-size:28px; font-weight:900; letter-spacing:-0.02em; line-height:1.25;}
+  .method-note{max-width:640px; font-size:13px; color:var(--body-text); line-height:1.6; margin-top:8px;}
+  .method-note b{color:var(--ink); font-weight:700;}
+  .glossary-note{max-width:640px; font-size:12px; color:var(--mute); line-height:1.6; margin-top:6px; list-style:none; display:flex; flex-direction:column; gap:3px;}
+  .glossary-note b{color:var(--body-text); font-weight:600;}
+  .meta{color:var(--body-text); font-size:13px; margin-top:10px; display:flex; gap:14px; flex-wrap:wrap;}
+  .meta.source-meta{margin-top:4px;}
+  .meta code{font-family:'IBM Plex Mono',monospace; background:var(--mute-pale); padding:2px 7px; border-radius:8px; font-size:12px; color:var(--ink);}
+  .data-flag{font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:500; padding:4px 10px; border-radius:9999px; margin-top:12px; display:inline-block;}
+  .data-flag.demo{color:var(--warning-content); background:var(--warning-pale);}
+  .data-flag.real{color:var(--positive-deep); background:var(--positive-pale);}
+
+  .verdict{display:flex; align-items:center; gap:16px; background:var(--card-bg); border-radius:24px; padding:20px 24px; min-width:280px;}
+  .verdict-text .label{font-size:11px; color:var(--mute); font-family:'IBM Plex Mono',monospace; letter-spacing:.08em; text-transform:uppercase;}
+  .verdict-text .value{font-family:'Inter',sans-serif; font-size:20px; font-weight:700; color:var(--ink); margin-top:2px;}
+  .verdict-text .value.positive{color:var(--positive-deep);}
+  .verdict-text .value.warning{color:var(--warning-deep);}
+  .verdict-text .value.negative{color:var(--negative-deep);}
+  .verdict-text .value.neutral{color:var(--mute);}
+  .verdict-text .sub{font-size:12.5px; color:var(--body-text); margin-top:4px; line-height:1.5;}
+  .verdict.positive{background:var(--positive-pale);}
+  .verdict.warning{background:var(--warning-pale);}
+  .verdict.negative{background:var(--negative-pale);}
+
+  .prob-gauge{margin-top:12px; min-width:220px;}
+  .prob-gauge .track{position:relative; height:8px; border-radius:9999px;
+    background:linear-gradient(to right, var(--mute-pale) 0 35%, var(--warning-pale) 35% 60%, var(--positive-pale) 60% 100%);}
+  .prob-gauge .marker{position:absolute; top:-3px; width:14px; height:14px; margin-left:-7px;
+    border-radius:50%; background:var(--ink); border:2px solid var(--canvas); left:0%;}
+  .prob-gauge .scale{display:flex; justify-content:space-between; font-size:9.5px; color:var(--mute);
+    font-family:'IBM Plex Mono',monospace; margin-top:5px;}
+  .prob-gauge .value-label{font-size:11px; color:var(--body-text); margin-top:4px;}
+
+  .grid{display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-bottom:16px;}
+  .card{background:var(--card-bg); border-radius:24px; padding:20px 24px;}
+  .card h3{font-family:'Inter',sans-serif; font-size:15px; font-weight:700; margin-bottom:4px; color:var(--ink);}
+  .card .desc{font-size:12.5px; color:var(--body-text); margin-bottom:14px; line-height:1.5;}
+  .main-chart{grid-column:1 / -1;}
+  .legend{display:flex; gap:18px; font-size:12.5px; color:var(--body-text); margin-bottom:12px; flex-wrap:wrap; align-items:center;}
+  .legend .dot{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; vertical-align:middle;}
+  .badge{display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:10.5px; padding:2px 9px; border-radius:9999px; font-weight:500;}
+  .badge.signal{background:var(--positive-pale); color:var(--positive-deep);}
+  .badge.noise{background:var(--mute-pale); color:var(--mute);}
+  .badge.latest{background:var(--warning-pale); color:var(--warning-deep);}
+
+  .decomp-row{display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-bottom:16px;}
+  .decomp-row .card h3{font-size:13px; color:var(--body-text); font-weight:600;}
+
+  .evidence ul{list-style:none;}
+  .evidence li{display:flex; gap:12px; padding:12px 0; border-bottom:1px solid var(--border); font-size:13.5px; align-items:flex-start; line-height:1.6; color:var(--body-text);}
+  .evidence li:last-child{border-bottom:none;}
+  .evidence li .tag{flex-shrink:0; width:76px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--mute); padding-top:2px;}
+  .history-summary{font-size:13px; color:var(--ink); line-height:1.6; background:var(--mute-pale); border-radius:12px; padding:12px 16px; margin-bottom:14px;}
+  .history-summary .hint{display:block; font-size:11px; color:var(--mute); margin-top:4px;}
+
+  .validity{grid-column:1 / -1; background:var(--primary-pale);}
+  .validity ul{padding-left:18px; font-size:12.5px; color:var(--body-text); line-height:1.85; list-style:disc;}
+  .validity ul li{margin-bottom:8px;}
+  .validity ul li:last-child{margin-bottom:0;}
+  .validity b{color:var(--ink);}
+  .validity code{font-family:'IBM Plex Mono',monospace; background:rgba(14,15,12,0.08); padding:1px 5px; border-radius:6px; font-size:11.5px;}
+
+  .limits{grid-column:1 / -1; background:var(--mute-pale);}
+  .limits ul{padding-left:18px; font-size:12.5px; color:var(--body-text); line-height:1.9;}
+
+  footer{grid-column:1 / -1; display:flex; justify-content:space-between; align-items:center; font-size:11.5px; color:var(--mute); padding:8px 4px 0; flex-wrap:wrap; gap:8px;}
+
+  @media (max-width:760px){.grid,.decomp-row{grid-template-columns:1fr;} header{flex-direction:column; align-items:flex-start;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="eyebrow">이커머스 카테고리 트렌드 신호 판별</div>
+      <h1>패션잡화(신발): 여성신발/남성신발 (신발) · shoes</h1>
+      <p class="method-note">
+        네이버 검색지수와 통계청 거래액, 두 시계열을 <b>계절성분해 → 이상탐지(Z-score)
+        → 로지스틱회귀</b> 순서로 분석했습니다. 검색이 평소보다 급증한 달을 찾고,
+        그 이후 실제 거래액이 계절 평균보다 더 올랐던 과거 사례들과 지금을 비교해
+        "검색 급증이 진짜 수요로 이어질 가능성"을 등급으로 판정합니다.
+      </p>
+      <ul class="glossary-note">
+        <li><b>신호</b> = 검색이 급증한 뒤 실제 거래액도 같이 늘었던 경우</li>
+        <li><b>노이즈</b> = 검색만 반짝 늘고 거래액은 별 반응이 없었던 경우 (일시적 관심으로 끝남)</li>
+        <li><b>데모 데이터</b> = 실제 API 연동이 안 됐을 때 대신 쓰는, 계산 검증용 가상의 예시 데이터 (실제 값 아님)</li>
+      </ul>
+      <div class="meta">
+        <span>분석 기간 <code>2013-07 - 2026-06</code></span>
+        <span>표본 <code>156개월 · 이상이벤트 14건</code></span>
+      </div>
+      <div class="meta source-meta">
+        <span>검색지수 출처 <code>네이버 데이터랩 쇼핑인사이트 · 패션잡화(신발): 여성신발/남성신발 (코드 50000173, 50000174)</code></span>
+        <span>거래액 출처 <code>통계청 온라인쇼핑동향조사 · 온라인쇼핑몰 취급상품범위별/상품군별거래액(DT_1KE10041) · 신발</code></span>
+      </div>
+      <div class="data-flag demo">⚠ 데모(가상) 데이터 사용 — 실제 API 연동에 실패해 계산 검증용 가상 데이터로 대체함. 사유: 카테고리 매핑이 실데이터 자동 분석 대상이 아닙니다: 검증완료 (다중코드: 자동 합산 보류)</div>
+    </div>
+    <div class="verdict positive">
+      <div class="verdict-text">
+        <div class="label">판정</div>
+        <div class="value positive">관심 있게 지켜볼 만함 (99.5%)</div>
+        <div class="sub">과거 유사 이벤트 13건 기반 로지스틱회귀 예측</div>
+        <div class="prob-gauge" id="probGauge" hidden>
+          <div class="track"><div class="marker" id="probMarker"></div></div>
+          <div class="scale"><span>0 (노이즈)</span><span>35</span><span>60</span><span>100 (신호)</span></div>
+          <div class="value-label" id="probValueLabel"></div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="card main-chart">
+      <h3>검색지수 vs 거래액 · 이상탐지 구간</h3>
+      <div class="desc">네이버 검색지수(상대값)와 통계청 거래액(억원)을 각자의 축으로 겹쳐 봅니다. 색이 칠해진 구간에 마우스를 올리면 월과 라벨이 보입니다.</div>
+      <div class="legend">
+        <span><span class="dot" style="background:var(--line-search)"></span>검색지수</span>
+        <span><span class="dot" style="background:var(--line-revenue)"></span>거래액</span>
+        <span><span class="badge signal">신호</span> 검색 급증 후 거래액 후행 상승 확인됨</span>
+        <span><span class="badge noise">노이즈</span> 검색 급증만 있고 거래액 반응 없음</span>
+        <span><span class="badge latest">최신</span> 아직 후행 결과 없음(예측 대상)</span>
+      </div>
+      <svg id="mainChart" viewBox="0 0 980 320" width="100%" height="320"></svg>
+    </div>
+  </div>
+
+  <div class="decomp-row">
+    <div class="card"><h3>추세</h3><div class="desc">전역 선형회귀로 뽑은 장기 추세(검색지수 단위)</div><svg class="miniChart" data-series="trend" viewBox="0 0 300 110" width="100%" height="110"></svg></div>
+    <div class="card"><h3>계절성</h3><div class="desc">월별 중앙값으로 뽑은 반복 패턴(검색지수 단위)</div><svg class="miniChart" data-series="seasonal" viewBox="0 0 300 110" width="100%" height="110"></svg></div>
+    <div class="card"><h3>잔차 Z-score — 이상탐지 기준선 ±2</h3><div class="desc">점선을 벗어나면 이상 이벤트로 탐지됩니다</div><svg class="miniChart" data-series="residualZ" viewBox="0 0 300 110" width="100%" height="110"></svg></div>
+  </div>
+
+  <div class="grid">
+    <div class="card evidence" style="grid-column:1/-1;">
+      <h3>판정 근거</h3>
+      <p class="history-summary">과거 13건의 검색 급증 이벤트 중 3건(23%)이 실제 거래액 증가로 이어졌습니다. 같은 기간 검색지수의 전반적 추세는 완만히 상승했습니다(+16.3p). <span class="hint">(지금 당장 급증이 없어도 항상 계산되는 이 카테고리의 과거 이력 요약입니다)</span></p>
+      <ul>
+        <li><span class="tag">2013-11</span>검색지수 급증(Z-score 18.35) 이후 후행 거래액 반응 확인됨 → <span class="badge signal">신호</span>로 라벨링</li>
+<li><span class="tag">2014-01</span>검색지수 급증(Z-score -2.12) 이후 후행 거래액 반응 확인 안 됨 → <span class="badge noise">노이즈</span>로 라벨링</li>
+<li><span class="tag">2014-06</span>검색지수 급증(Z-score 18.69) 이후 후행 거래액 반응 확인 안 됨 → <span class="badge noise">노이즈</span>로 라벨링</li>
+<li><span class="tag">2015-01</span>검색지수 급증(Z-score 16.47) 이후 후행 거래액 반응 확인됨 → <span class="badge signal">신호</span>로 라벨링</li>
+<li><span class="tag">2015-08</span>검색지수 급증(Z-score 17.83) 이후 후행 거래액 반응 확인 안 됨 → <span class="badge noise">노이즈</span>로 라벨링</li>
+<li><span class="tag">2015-11</span>검색지수 급증(Z-score -2.22) 이후 후행 거래액 반응 확인 안 됨 → <span class="badge noise">노이즈</span>로 라벨링</li>
+<li><span class="tag">2016-03</span>검색지수 급증(Z-score 19.67) 이후 후행 거래액 반응 확인됨 → <span class="badge signal">신호</span>로 라벨링</li>
+<li><span class="tag">2016-10</span>검색지수 급증(Z-score 19.04) 이후 후행 거래액 반응 확인 안 됨 → <span class="badge noise">노이즈</span>로 라벨링</li>
+<li><span class="tag">2022-03</span>검색지수 급증(Z-score 2.19) 이후 후행 거래액 반응 확인 안 됨 → <span class="badge noise">노이즈</span>로 라벨링</li>
+<li><span class="tag">2023-09</span>검색지수 급증(Z-score 2.22) 이후 후행 거래액 반응 확인 안 됨 → <span class="badge noise">노이즈</span>로 라벨링</li>
+<li><span class="tag">2025-09</span>검색지수 급증(Z-score 2.46) 이후 후행 거래액 반응 확인 안 됨 → <span class="badge noise">노이즈</span>로 라벨링</li>
+<li><span class="tag">2025-10</span>검색지수 급증(Z-score 2.71) 이후 후행 거래액 반응 확인 안 됨 → <span class="badge noise">노이즈</span>로 라벨링</li>
+<li><span class="tag">2026-03</span>검색지수 급증(Z-score 2.68) 이후 후행 거래액 반응 확인 안 됨 → <span class="badge noise">노이즈</span>로 라벨링</li>
+<li><span class="tag">2026-05</span>최신 이상 이벤트, 아직 후행 데이터 없음 → <span class="badge latest">모델 예측 대상</span></li>
+<li><span class="tag">모델</span>과거 이벤트 13건으로 학습한 로지스틱회귀 사용</li>
+      </ul>
+    </div>
+    <div class="card validity" style="grid-column:1/-1;">
+      <h3>이 리포트를 어떻게 읽어야 하나</h3>
+      <ul>
+        <li><b>단위가 다른 두 지표를 직접 비교하지 않습니다.</b> 통계청 거래액(절대값)과 네이버 검색지수(상대값)를
+          같은 눈금으로 겹쳐 읽지 않고, 각 시계열을 <b>자기 자신의 과거 계절 패턴 대비</b>로 정규화한 뒤
+          "검색이 튄 시점 → 그 뒤 거래액도 튀었는가"라는 <b>타이밍(선후관계)만</b> 봅니다. 검색관심도를 수요의
+          선행지표로 쓰는 접근 자체는(구글트렌드로 판매량을 나우캐스팅하는 연구들과 비슷한 원리) 데이터 분석에서
+          널리 쓰이는 방식이라, 관측 단위가 달라도 이 비교 방식 자체는 유효하다고 보았습니다.</li>
+        <li><b>실제로 더 큰 한계는 표본 크기입니다.</b> 과거 이상 이벤트가 카테고리당 대개 4~11건 정도라
+          로지스틱회귀가 통계적으로 아주 강건하다고 보기는 어렵습니다. 그래서 표본이 <code>min_sample</code>
+          미만이면 확률 대신 "판단 보류"로 막습니다.</li>
+        <li><b>이 리포트는 정밀 예측·인과 증명 도구가 아니라 1차 스크리닝(screening) 도구입니다.</b>
+          "이 카테고리를 자세히 볼 가치가 있는가"를 빠르게 걸러주는 용도로 설계했고, 재고·마케팅비를 실제로
+          얼마나 투입할지 같은 정밀한 의사결정은 이 리포트만으로 내리지 않는 것을 권장합니다.</li>
+      </ul>
+    </div>
+    <div class="card limits" style="grid-column:1/-1;">
+      <h3>한계 및 유의사항</h3>
+      <ul>
+        <li>네이버 검색지수는 절대 검색량이 아닌 기간 내 최댓값=100 기준 상대지수입니다.</li>
+        <li>거래액은 통계청 온라인쇼핑동향조사의 월 단위 집계라 세밀한 일 단위 반응은 확인할 수 없습니다.</li>
+        <li>통계청은 사업체 조사 기반 거래액이고, 네이버는 검색·클릭 행동 기반 상대지수라 관측 단위가 다릅니다.</li>
+        <li>통계청의 가장 최근 1~2개월 값은 잠정치일 수 있어 추후 바뀔 수 있습니다.</li>
+        <li>라벨링된 과거 이벤트 표본이 13건입니다. 6건 미만이면 확률 대신 판단 보류로 처리합니다.</li>
+        <li>이 판정은 자동 발주·마케팅 집행 결정을 대신하지 않으며, 검토 후보를 제시하는 용도로만 사용합니다.</li>
+      </ul>
+    </div>
+    <footer style="grid-column:1/-1;">
+      <span>스킬: ecommerce-trend-signal · 2026-07-29 10:21</span>
+      <span>데모 데이터 기반 실행</span>
+    </footer>
+  </div>
+</div>
+
+<script>
+const months = ["2013-07", "2013-08", "2013-09", "2013-10", "2013-11", "2013-12", "2014-01", "2014-02", "2014-03", "2014-04", "2014-05", "2014-06", "2014-07", "2014-08", "2014-09", "2014-10", "2014-11", "2014-12", "2015-01", "2015-02", "2015-03", "2015-04", "2015-05", "2015-06", "2015-07", "2015-08", "2015-09", "2015-10", "2015-11", "2015-12", "2016-01", "2016-02", "2016-03", "2016-04", "2016-05", "2016-06", "2016-07", "2016-08", "2016-09", "2016-10", "2016-11", "2016-12", "2017-01", "2017-02", "2017-03", "2017-04", "2017-05", "2017-06", "2017-07", "2017-08", "2017-09", "2017-10", "2017-11", "2017-12", "2018-01", "2018-02", "2018-03", "2018-04", "2018-05", "2018-06", "2018-07", "2018-08", "2018-09", "2018-10", "2018-11", "2018-12", "2019-01", "2019-02", "2019-03", "2019-04", "2019-05", "2019-06", "2019-07", "2019-08", "2019-09", "2019-10", "2019-11", "2019-12", "2020-01", "2020-02", "2020-03", "2020-04", "2020-05", "2020-06", "2020-07", "2020-08", "2020-09", "2020-10", "2020-11", "2020-12", "2021-01", "2021-02", "2021-03", "2021-04", "2021-05", "2021-06", "2021-07", "2021-08", "2021-09", "2021-10", "2021-11", "2021-12", "2022-01", "2022-02", "2022-03", "2022-04", "2022-05", "2022-06", "2022-07", "2022-08", "2022-09", "2022-10", "2022-11", "2022-12", "2023-01", "2023-02", "2023-03", "2023-04", "2023-05", "2023-06", "2023-07", "2023-08", "2023-09", "2023-10", "2023-11", "2023-12", "2024-01", "2024-02", "2024-03", "2024-04", "2024-05", "2024-06", "2024-07", "2024-08", "2024-09", "2024-10", "2024-11", "2024-12", "2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06", "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06"];
+const searchIndex = [30, 33, 38, 43, 91, 62, 60, 60, 55, 48, 37, 69, 29, 33, 40, 47, 57, 63, 97, 63, 56, 49, 38, 32, 32, 69, 39, 49, 54, 63, 66, 61, 96, 50, 40, 37, 30, 36, 40, 87, 59, 64, 67, 66, 56, 51, 42, 36, 33, 38, 41, 52, 58, 66, 67, 67, 61, 50, 43, 37, 38, 36, 46, 51, 61, 70, 72, 71, 62, 52, 46, 42, 40, 39, 47, 54, 66, 71, 74, 73, 62, 56, 47, 42, 37, 41, 46, 55, 63, 73, 76, 70, 63, 57, 48, 41, 40, 42, 46, 58, 66, 74, 73, 71, 70, 58, 50, 43, 44, 44, 52, 58, 68, 74, 75, 77, 68, 61, 53, 44, 46, 47, 55, 62, 68, 74, 79, 74, 68, 60, 52, 47, 46, 46, 52, 63, 71, 79, 78, 78, 73, 63, 56, 47, 44, 49, 58, 67, 73, 80, 81, 80, 76, 64, 97, 51];
+const revenue = [106, 112, 124, 161, 185, 257, 274, 214, 191, 162, 144, 122, 126, 130, 159, 173, 201, 224, 230, 295, 277, 197, 169, 151, 151, 156, 177, 206, 228, 255, 260, 252, 232, 289, 241, 176, 171, 184, 207, 230, 253, 277, 287, 286, 269, 243, 214, 195, 193, 211, 219, 251, 279, 295, 308, 311, 291, 265, 235, 220, 216, 228, 255, 270, 310, 329, 326, 329, 308, 281, 270, 245, 236, 255, 265, 302, 332, 344, 357, 356, 340, 317, 284, 278, 272, 275, 298, 317, 350, 367, 376, 376, 362, 341, 317, 290, 288, 304, 317, 344, 382, 394, 411, 394, 378, 367, 344, 321, 313, 323, 343, 378, 404, 415, 429, 425, 412, 389, 363, 346, 345, 346, 372, 393, 428, 450, 454, 442, 424, 409, 378, 366, 368, 377, 393, 423, 447, 466, 475, 470, 462, 427, 405, 389, 394, 398, 421, 449, 474, 488, 506, 493, 485, 463, 433, 410];
+const trend = [48.5, 48.6, 48.7, 48.8, 48.9, 49.0, 49.1, 49.2, 49.3, 49.4, 49.5, 49.6, 49.7, 49.8, 49.9, 50.0, 50.1, 50.2, 50.4, 50.5, 50.6, 50.7, 50.8, 50.9, 51.0, 51.1, 51.2, 51.3, 51.4, 51.5, 51.6, 51.7, 51.8, 51.9, 52.0, 52.1, 52.3, 52.4, 52.5, 52.6, 52.7, 52.8, 52.9, 53.0, 53.1, 53.2, 53.3, 53.4, 53.5, 53.6, 53.7, 53.8, 53.9, 54.0, 54.2, 54.3, 54.4, 54.5, 54.6, 54.7, 54.8, 54.9, 55.0, 55.1, 55.2, 55.3, 55.4, 55.5, 55.6, 55.7, 55.8, 55.9, 56.0, 56.2, 56.3, 56.4, 56.5, 56.6, 56.7, 56.8, 56.9, 57.0, 57.1, 57.2, 57.3, 57.4, 57.5, 57.6, 57.7, 57.8, 57.9, 58.1, 58.2, 58.3, 58.4, 58.5, 58.6, 58.7, 58.8, 58.9, 59.0, 59.1, 59.2, 59.3, 59.4, 59.5, 59.6, 59.7, 59.8, 60.0, 60.1, 60.2, 60.3, 60.4, 60.5, 60.6, 60.7, 60.8, 60.9, 61.0, 61.1, 61.2, 61.3, 61.4, 61.5, 61.6, 61.7, 61.8, 62.0, 62.1, 62.2, 62.3, 62.4, 62.5, 62.6, 62.7, 62.8, 62.9, 63.0, 63.1, 63.2, 63.3, 63.4, 63.5, 63.6, 63.7, 63.9, 64.0, 64.1, 64.2, 64.3, 64.4, 64.5, 64.6, 64.7, 64.8];
+const seasonal = [-18.6, -16.4, -10.6, -2.2, 6.9, 13.6, 15.0, 12.7, 6.4, -1.5, -10.2, -16.5, -18.6, -16.4, -10.6, -2.2, 6.9, 13.6, 15.0, 12.7, 6.4, -1.5, -10.2, -16.5, -18.6, -16.4, -10.6, -2.2, 6.9, 13.6, 15.0, 12.7, 6.4, -1.5, -10.2, -16.5, -18.6, -16.4, -10.6, -2.2, 6.9, 13.6, 15.0, 12.7, 6.4, -1.5, -10.2, -16.5, -18.6, -16.4, -10.6, -2.2, 6.9, 13.6, 15.0, 12.7, 6.4, -1.5, -10.2, -16.5, -18.6, -16.4, -10.6, -2.2, 6.9, 13.6, 15.0, 12.7, 6.4, -1.5, -10.2, -16.5, -18.6, -16.4, -10.6, -2.2, 6.9, 13.6, 15.0, 12.7, 6.4, -1.5, -10.2, -16.5, -18.6, -16.4, -10.6, -2.2, 6.9, 13.6, 15.0, 12.7, 6.4, -1.5, -10.2, -16.5, -18.6, -16.4, -10.6, -2.2, 6.9, 13.6, 15.0, 12.7, 6.4, -1.5, -10.2, -16.5, -18.6, -16.4, -10.6, -2.2, 6.9, 13.6, 15.0, 12.7, 6.4, -1.5, -10.2, -16.5, -18.6, -16.4, -10.6, -2.2, 6.9, 13.6, 15.0, 12.7, 6.4, -1.5, -10.2, -16.5, -18.6, -16.4, -10.6, -2.2, 6.9, 13.6, 15.0, 12.7, 6.4, -1.5, -10.2, -16.5, -18.6, -16.4, -10.6, -2.2, 6.9, 13.6, 15.0, 12.7, 6.4, -1.5, -10.2, -16.5];
+const residual = [0.1, 0.8, -0.1, -3.6, 35.3, -0.6, -4.1, -1.9, -0.7, 0.1, -2.3, 35.9, -2.1, -0.5, 0.7, -0.9, 0.0, -0.9, 31.7, -0.2, -0.9, -0.1, -2.6, -2.3, -0.4, 34.3, -1.6, -0.1, -4.3, -2.1, -0.6, -3.5, 37.8, -0.4, -1.9, 1.4, -3.7, 0.0, -1.9, 36.6, -0.5, -2.4, -0.9, 0.3, -3.5, -0.7, -1.1, -0.9, -1.9, 0.7, -2.1, 0.3, -2.8, -1.7, -2.1, 0.0, 0.3, -2.9, -1.4, -1.1, 1.8, -2.5, 1.6, -1.9, -1.1, 1.1, 1.6, 2.7, 0.0, -2.2, 0.3, 2.6, 2.5, -0.8, 1.3, -0.2, 2.7, 0.8, 2.3, 3.5, -1.3, 0.5, 0.1, 1.3, -1.7, -0.1, -0.9, -0.5, -1.6, 1.5, 3.1, -0.8, -1.5, 0.3, -0.2, -0.9, 0.0, -0.3, -2.2, 1.3, 0.1, 1.3, -1.2, -1.1, 4.2, 0.0, 0.5, -0.2, 2.7, 0.4, 2.5, 0.0, 0.9, 0.0, -0.5, 3.7, 0.9, 1.7, 2.3, -0.5, 3.5, 2.1, 4.3, 2.7, -0.4, -1.3, 2.3, -0.6, -0.3, -0.5, 0.0, 1.3, 2.2, -0.1, 0.0, 2.5, 1.3, 2.5, 0.0, 2.1, 3.4, 1.2, 2.7, 0.0, -1.1, 1.6, 4.7, 5.2, 2.1, 2.2, 1.7, 2.9, 5.1, 0.9, 42.5, 2.7];
+const residualZ = [0.06, 0.41, -0.04, -1.88, 18.35, -0.32, -2.12, -1.01, -0.35, 0.06, -1.22, 18.69, -1.11, -0.24, 0.34, -0.46, 0.0, -0.46, 16.47, -0.11, -0.49, -0.07, -1.36, -1.22, -0.21, 17.83, -0.84, -0.07, -2.22, -1.11, -0.32, -1.8, 19.67, -0.21, -0.98, 0.72, -1.91, 0.0, -0.98, 19.04, -0.28, -1.25, -0.46, 0.14, -1.8, -0.35, -0.59, -0.46, -1.01, 0.38, -1.11, 0.17, -1.45, -0.87, -1.11, 0.0, 0.14, -1.53, -0.73, -0.59, 0.93, -1.32, 0.83, -1.01, -0.55, 0.55, 0.83, 1.42, 0.0, -1.15, 0.17, 1.35, 1.32, -0.41, 0.69, -0.11, 1.39, 0.41, 1.21, 1.8, -0.66, 0.28, 0.03, 0.69, -0.9, -0.03, -0.49, -0.24, -0.83, 0.8, 1.59, -0.41, -0.8, 0.14, -0.11, -0.49, 0.0, -0.17, -1.15, 0.66, 0.07, 0.66, -0.63, -0.55, 2.19, 0.0, 0.28, -0.11, 1.42, 0.21, 1.32, 0.0, 0.46, 0.0, -0.24, 1.91, 0.49, 0.9, 1.18, -0.24, 1.8, 1.11, 2.22, 1.42, -0.2, -0.66, 1.18, -0.31, -0.17, -0.28, 0.0, 0.66, 1.15, -0.06, 0.0, 1.28, 0.7, 1.28, 0.0, 1.11, 1.77, 0.63, 1.42, 0.0, -0.55, 0.84, 2.46, 2.71, 1.08, 1.15, 0.9, 1.5, 2.68, 0.49, 22.1, 1.42];
+const zThreshold = 2.0;
+const zones = [{"i": 4, "color": "#2ead4b", "label": "신호·2013-11"}, {"i": 6, "color": "#868685", "label": "노이즈·2014-01"}, {"i": 11, "color": "#868685", "label": "노이즈·2014-06"}, {"i": 18, "color": "#2ead4b", "label": "신호·2015-01"}, {"i": 25, "color": "#868685", "label": "노이즈·2015-08"}, {"i": 28, "color": "#868685", "label": "노이즈·2015-11"}, {"i": 32, "color": "#2ead4b", "label": "신호·2016-03"}, {"i": 39, "color": "#868685", "label": "노이즈·2016-10"}, {"i": 104, "color": "#868685", "label": "노이즈·2022-03"}, {"i": 122, "color": "#868685", "label": "노이즈·2023-09"}, {"i": 146, "color": "#868685", "label": "노이즈·2025-09"}, {"i": 147, "color": "#868685", "label": "노이즈·2025-10"}, {"i": 152, "color": "#868685", "label": "노이즈·2026-03"}, {"i": 154, "color": "#b86700", "label": "최신·2026-05"}];
+const modelProb = 99.5;           // null이면 게이지를 숨긴다
+const modelNSample = 13;
+const probSignalThreshold = 60.0;
+const probNoiseThreshold = 35.0;
+
+const svgNS = 'http://www.w3.org/2000/svg';
+
+function el(tag, attrs){
+  const e = document.createElementNS(svgNS, tag);
+  for(const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+
+// 이전 버전은 zone마다 <text>를 차트 위에 직접 그려서, 실데이터처럼 이상
+// 이벤트가 연달아 붙은 달에 몰리면(예: 2022-12~2023-03 연속 4개월) 라벨
+// 텍스트끼리 겹쳐서 읽을 수 없었다. 지금은 강조색 배경만 차트에 남기고
+// 월/라벨은 <title> 툴팁(마우스오버)으로만 노출해, 이벤트가 몇 개든 겹침이
+// 구조적으로 발생하지 않게 한다. 월 라벨 자체는 아래 "판정 근거" 목록에서
+// 이미 텍스트로 보여주고 있어 정보 손실도 없다.
+function drawLine(svgEl, series, opts){
+  const w = opts.w||980, h = opts.h||300, pad = opts.pad||28;
+  const min = Math.min(...series.flatMap(s=>s.data));
+  const max = Math.max(...series.flatMap(s=>s.data));
+  const range = (max-min)||1;
+  const n = series[0].data.length;
+  const x = i => pad + (n<=1 ? 0 : (i/(n-1))*(w-pad*2));
+  const y = v => h-pad - ((v-min)/range)*(h-pad*2);
+
+  if(opts.zones){
+    opts.zones.forEach(z=>{
+      const rect = el('rect', {
+        x:(x(z.i)-14).toFixed(1), y:pad, width:28, height:h-pad*2,
+        fill:z.color, opacity:0.16, rx:4,
+      });
+      const title = document.createElementNS(svgNS, 'title');
+      title.textContent = z.label;
+      rect.appendChild(title);
+      svgEl.appendChild(rect);
+    });
+  }
+
+  if(opts.xLabels){
+    const maxLabels = 8;
+    const stride = Math.max(1, Math.ceil(n / maxLabels));
+    for(let i=0;i<n;i+=stride){
+      const t = el('text', {
+        x:x(i).toFixed(1), y:h-6, fill:'var(--mute)', 'font-size':10,
+        'font-family':'IBM Plex Mono', 'text-anchor': i===0 ? 'start' : (i>=n-1 ? 'end' : 'middle'),
+      });
+      t.textContent = opts.xLabels[i];
+      svgEl.appendChild(t);
+    }
+  }
+
+  series.forEach(s=>{
+    const d = s.data.map((v,i)=> (i===0?'M':'L') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join(' ');
+    svgEl.appendChild(el('path', {d, fill:'none', stroke:s.color, 'stroke-width':s.width||2, 'stroke-linejoin':'round'}));
+  });
+
+  if(opts.zeroLine){
+    svgEl.appendChild(el('line', {
+      x1:pad, y1:y(0).toFixed(1), x2:w-pad, y2:y(0).toFixed(1),
+      stroke:'var(--border)', 'stroke-dasharray':'3,3',
+    }));
+  }
+
+  // ±threshold 기준선 — "잔차 Z-score" 차트에서 이상탐지 경계를 눈으로
+  // 바로 확인할 수 있게 한다(값이 표만 있으면 어디부터 "이상"인지 안 보임).
+  if(opts.thresholds){
+    opts.thresholds.forEach(t=>{
+      if(t < min-range*0.05 || t > max+range*0.05) return; // 화면 밖이면 생략
+      svgEl.appendChild(el('line', {
+        x1:pad, y1:y(t).toFixed(1), x2:w-pad, y2:y(t).toFixed(1),
+        stroke:'var(--negative)', 'stroke-width':1, 'stroke-dasharray':'4,3', opacity:0.55,
+      }));
+    });
+  }
+
+  // 최댓값/최솟값을 코너에 표기 — 값 범위를 모르면 "추세만 봐서는" 그래프가
+  // 무슨 규모인지 알 수 없다는 문제를 해결한다.
+  if(opts.yLabels){
+    const fmt = v => Number.isInteger(v) ? v : v.toFixed(1);
+    const maxT = el('text', {x:pad, y:pad-6, fill:'var(--mute)', 'font-size':9.5, 'font-family':'IBM Plex Mono'});
+    maxT.textContent = `max ${fmt(max)}`;
+    const minT = el('text', {x:pad, y:h-pad+13, fill:'var(--mute)', 'font-size':9.5, 'font-family':'IBM Plex Mono'});
+    minT.textContent = `min ${fmt(min)}`;
+    svgEl.appendChild(maxT);
+    svgEl.appendChild(minT);
+  }
+}
+
+const rootStyle = getComputedStyle(document.documentElement);
+const cssVar = name => rootStyle.getPropertyValue(name).trim();
+
+drawLine(document.getElementById('mainChart'), [
+  {data:searchIndex, color:cssVar('--line-search'), width:2.2},
+  {data:revenue.map(v=>v/(Math.max(...revenue)/80)), color:cssVar('--line-revenue'), width:2.2},
+], {w:980, h:320, pad:28, zones:zones, xLabels:months});
+
+document.querySelectorAll('.miniChart').forEach(svg=>{
+  const key = svg.dataset.series;
+  const map = {trend:trend, seasonal:seasonal, residualZ:residualZ};
+  const colorMap = {trend:'--line-trend', seasonal:'--line-seasonal', residualZ:'--line-residual'};
+  drawLine(svg, [{data:map[key], color:cssVar(colorMap[key]), width:1.8}], {
+    w:300, h:110, pad:18, zeroLine:key!=='trend', yLabels:true,
+    thresholds: key==='residualZ' ? [zThreshold, -zThreshold] : null,
+  });
+});
+
+// 로지스틱회귀 확률 게이지 — 최신(미라벨) 이벤트에 대한 예측값이 있을 때만
+// 보여준다. 값이 없으면(판단 보류 등) 게이지 자체를 숨겨 빈 막대가
+// "확률 0%"처럼 오독되지 않게 한다.
+if(modelProb !== null){
+  const gauge = document.getElementById('probGauge');
+  gauge.hidden = false;
+  document.getElementById('probMarker').style.left = modelProb + '%';
+  document.getElementById('probValueLabel').textContent =
+    `로지스틱회귀 예측 확률 ${modelProb}% · 과거 유사 이벤트 ${modelNSample}건 기반 ` +
+    `(${probNoiseThreshold} 이하 노이즈 / ${probSignalThreshold} 이상 신호)`;
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+{
+  "shopping_insight_sample": {
+    "startDate": "2026-07-21",
+    "endDate": "2026-07-27",
+    "timeUnit": "date",
+    "results": [
+      {
+        "title": "패션의류",
+        "category": ["50000000"],
+        "data": [
+          {"period": "2026-07-21", "ratio": 78.46801},
+          {"period": "2026-07-22", "ratio": 82.94383},
+          {"period": "2026-07-23", "ratio": 84.23776}
+        ]
+      }
+    ]
+  },
+  "search_trend_sample": {
+    "startDate": "2026-07-21",
+    "endDate": "2026-07-27",
+    "timeUnit": "date",
+    "results": [
+      {
+        "title": "AI",
+        "keywords": ["AI", "인공지능"],
+        "data": [
+          {"period": "2026-07-21", "ratio": 2.14232},
+          {"period": "2026-07-22", "ratio": 2.29241},
+          {"period": "2026-07-23", "ratio": 2.1507}
+        ]
+      },
+      {
+        "title": "ChatGPT",
+        "keywords": ["챗GPT", "ChatGPT"],
+        "data": [
+          {"period": "2026-07-21", "ratio": 100},
+          {"period": "2026-07-22", "ratio": 97.29969},
+          {"period": "2026-07-23", "ratio": 95.72948}
+        ]
+      }
+    ]
+  }
+}
